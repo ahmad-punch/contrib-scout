@@ -1,0 +1,58 @@
+{
+  "name": "contrib-scout",
+  "version": "0.1.0",
+  "description": "Should I open a PR here? A scorecard for any GitHub repo: PR policy, AI-contribution policy, outsider merge rate and good-first-issue health.",
+  "keywords": [
+    "github",
+    "open-source",
+    "contributing",
+    "pull-request",
+    "cli",
+    "ai-policy"
+  ],
+  "author": "Ahmad Salman Khan <ahmadsalman137@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/ahmad-punch/contrib-scout#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ahmad-punch/contrib-scout.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ahmad-punch/contrib-scout/issues"
+  },
+  "type": "module",
+  "bin": {
+    "contrib-scout": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.4.0",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check . && tsc --noEmit",
+    "format": "biome check --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run lint && pnpm run test && pnpm run build"
+  },
+  "dependencies": {
+    "commander": "^14.0.3",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@types/node": "^26.6.5",
+    "tsup": "^9.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
