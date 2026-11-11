@@ -12,6 +12,8 @@ const busy: MergeStats = {
   medianHoursToMerge: 12,
   distinctForkAuthors: 30,
   forkMergedLast60Days: 25,
+  firstTimeForkAuthors: 12,
+  returningForkAuthors: 18,
 };
 
 const neutral: AiPolicy = { stance: "neutral", evidence: [], filesFound: [], gates: [] };

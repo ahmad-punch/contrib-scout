@@ -48,6 +48,8 @@ export interface FakeGitHub {
   prs?: MergedPullRequest[];
   labels?: string[];
   issues?: unknown;
+  /** Merged PRs each login had before the sample. Logins not listed have none. */
+  priorMerges?: Record<string, number>;
 }
 
 /** A fetch stand-in that answers the REST and GraphQL calls contrib-scout makes. */
@@ -75,6 +77,8 @@ export function fakeGitHub(fake: FakeGitHub): FetchLike & { calls: string[] } {
         const nodes = (fake.labels ?? []).map((label) => ({ name: label }));
         return json({ data: { repository: { first: { nodes }, help: { nodes: [] } } } });
       }
+      case "PriorMerges":
+        return json({ data: priorMergeCounts(query, fake.priorMerges ?? {}) });
       case "StarterIssues":
         expect(variables.first).toBe(20);
         return json({ data: { repository: { issues: fake.issues } } });
@@ -90,6 +94,15 @@ function policyBlobs(query: string, files: Record<string, string>): Record<strin
   for (const match of query.matchAll(/(f\d+): object\(expression: "HEAD:([^"]+)"\)/g)) {
     const [, alias = "", path = ""] = match;
     result[alias] = path in files ? { text: files[path] } : null;
+  }
+  return result;
+}
+
+function priorMergeCounts(query: string, counts: Record<string, number>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const match of query.matchAll(/(a\d+): search\(query: "[^"]*author:(\S+) /g)) {
+    const [, alias = "", login = ""] = match;
+    result[alias] = { issueCount: counts[login] ?? 0 };
   }
   return result;
 }

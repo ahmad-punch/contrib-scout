@@ -1,6 +1,6 @@
 import { analyzePolicyFiles, fetchPolicyFiles } from "./checks/ai-policy.ts";
 import { analyzeIssues, fetchStarterIssues } from "./checks/issues.ts";
-import { analyzeMerges, fetchMergedPullRequests } from "./checks/merges.ts";
+import { analyzeMerges, fetchMergeHistory } from "./checks/merges.ts";
 import { fetchRepo, toPrPolicy } from "./checks/pr-policy.ts";
 import { type GitHubClient, NotFoundError } from "./github.ts";
 import { repoSlug } from "./repo.ts";
@@ -32,15 +32,15 @@ export async function scoutRepo(
   const [owner = repo.owner, name = repo.name] = repoData.full_name.split("/");
   const canonical: RepoRef = { owner, name };
 
-  const [files, prs, starter] = await Promise.all([
+  const [files, history, starter] = await Promise.all([
     fetchPolicyFiles(client, canonical),
-    fetchMergedPullRequests(client, canonical),
+    fetchMergeHistory(client, canonical),
     options.includeIssues ? fetchStarterIssues(client, canonical) : Promise.resolve(null),
   ]);
 
   const prPolicy = toPrPolicy(repoData);
   const aiPolicy = analyzePolicyFiles(files);
-  const merges = analyzeMerges(prs, now);
+  const merges = analyzeMerges(history.prs, now, history.priorMerges);
   const breakdown = scoreBreakdown(merges, aiPolicy);
   const score = totalScore(prPolicy, breakdown);
 

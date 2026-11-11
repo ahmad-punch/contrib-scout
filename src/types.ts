@@ -53,6 +53,13 @@ export interface MergeStats {
   medianHoursToMerge: number | null;
   distinctForkAuthors: number;
   forkMergedLast60Days: number;
+  /**
+   * Fork authors whose earliest merged PR in the sample was their first merged PR in the repo.
+   * Each one accounts for exactly one first-time fork PR. Null when the lookup failed.
+   */
+  firstTimeForkAuthors: number | null;
+  /** Fork authors who already had a merged PR in the repo before the sample. */
+  returningForkAuthors: number | null;
 }
 
 export interface StarterIssue {
