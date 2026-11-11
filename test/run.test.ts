@@ -26,6 +26,7 @@ const healthy = {
       "# Contributing\n\nPlease disclose any AI assistance in your PR description.\n\nYou must be assigned to an issue before you start work.",
   },
   prs: [pr(1, { login: "alice" }), pr(2, { login: "bob" }), pr(3, { fork: false })],
+  priorMerges: { bob: 3 },
   labels: ["good first issue"],
   issues: {
     totalCount: 2,
@@ -68,6 +69,9 @@ describe("contrib-scout CLI", () => {
     expect(out).toContain("disclose-required");
     expect(out).toContain("assignment required");
     expect(out).toContain("67% (2 of last 3 merged PRs came from forks)");
+    expect(out).toContain(
+      "authors: 1 first-time, 1 returning (1 of 2 fork PRs were the author's first merge here)",
+    );
     expect(out).toContain("2 open; 1 of 2 checked already taken");
     expect(out).toContain("free: #7 Fix typo in docs");
   });
@@ -79,6 +83,8 @@ describe("contrib-scout CLI", () => {
     expect(report.aiPolicy.stance).toBe("disclose-required");
     expect(report.aiPolicy.gates.map((g) => g.kind)).toEqual(["assignment"]);
     expect(report.merges.distinctForkAuthors).toBe(2);
+    expect(report.merges.firstTimeForkAuthors).toBe(1);
+    expect(report.merges.returningForkAuthors).toBe(1);
     expect(report.issues?.taken).toBe(1);
     expect(report.score).toBeGreaterThan(0);
     expect(report.score).toBeLessThanOrEqual(100);
@@ -90,6 +96,7 @@ describe("contrib-scout CLI", () => {
     expect(fetch.calls).not.toContain("POST StarterIssues");
     expect(fetch.calls).not.toContain("POST StarterLabels");
     expect(out).toContain("| Starter issues | skipped (--no-issues) |");
+    expect(out).toContain("| First-time vs returning authors | 1 first-time, 1 returning");
   });
 
   it("renders a comparison table sorted by score", async () => {

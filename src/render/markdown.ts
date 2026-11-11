@@ -1,6 +1,7 @@
 import type { Report } from "../types.ts";
 import {
   describeBreakdown,
+  describeFirstTimers,
   describeGates,
   describeIssues,
   describeMedian,
@@ -31,6 +32,7 @@ export function renderMarkdown(report: Report): string {
     ["Outsider merges", describeOutsiderShare(report)],
     ["Median time to merge (fork PRs)", describeMedian(report)],
     ["Distinct fork authors", String(merges.distinctForkAuthors)],
+    ["First-time vs returning authors", describeFirstTimers(report)],
     ["Fork PRs merged, last 60 days", String(merges.forkMergedLast60Days)],
     ["Starter issues", describeIssues(report.issues)],
     ["Score breakdown", describeBreakdown(report)],

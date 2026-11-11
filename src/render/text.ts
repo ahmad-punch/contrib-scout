@@ -2,6 +2,7 @@ import pc from "picocolors";
 import type { AiStance, Report, VerdictLevel } from "../types.ts";
 import {
   describeBreakdown,
+  describeFirstTimers,
   describeGate,
   describeIssues,
   describeMedian,
@@ -82,6 +83,7 @@ export function renderText(report: Report): string {
         `median ${describeMedian(report)} to merge, ${merges.distinctForkAuthors} distinct authors, ${merges.forkMergedLast60Days} merged in the last 60 days`,
       ),
     );
+    lines.push(detail(`authors: ${describeFirstTimers(report)}`));
   }
   if (merges.botPrs > 0) lines.push(detail(pc.dim(`${merges.botPrs} bot PRs excluded`)));
 

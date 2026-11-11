@@ -57,6 +57,15 @@ export function describeMedian(report: Report): string {
   return medianHoursToMerge === null ? "n/a" : formatDuration(medianHoursToMerge);
 }
 
+export function describeFirstTimers(report: Report): string {
+  const { forkPrs, firstTimeForkAuthors, returningForkAuthors } = report.merges;
+  if (forkPrs === 0) return "n/a (no fork PRs merged)";
+  if (firstTimeForkAuthors === null || returningForkAuthors === null) {
+    return "unavailable (the GitHub search for earlier merges failed)";
+  }
+  return `${firstTimeForkAuthors} first-time, ${returningForkAuthors} returning (${firstTimeForkAuthors} of ${forkPrs} fork PRs were the author's first merge here)`;
+}
+
 export function describeIssues(issues: IssueHealth | null): string {
   if (!issues) return "skipped (--no-issues)";
   if (issues.labels.length === 0) return "no good-first-issue or help-wanted labels";
