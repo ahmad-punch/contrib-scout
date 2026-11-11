@@ -1,9 +1,13 @@
+import type { ResponseCache } from "./cache.ts";
+
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 export interface GitHubClientOptions {
   token: string;
   fetch?: FetchLike;
   apiUrl?: string;
+  /** Successful responses are read from and written to this cache when given. */
+  cache?: ResponseCache;
 }
 
 export class GitHubError extends Error {
@@ -44,36 +48,56 @@ export class GitHubClient {
   private readonly token: string;
   private readonly fetchImpl: FetchLike;
   private readonly apiUrl: string;
+  private readonly cache: ResponseCache | undefined;
 
   constructor(options: GitHubClientOptions) {
     this.token = options.token;
     this.fetchImpl = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
     this.apiUrl = (options.apiUrl ?? "https://api.github.com").replace(/\/$/, "");
+    this.cache = options.cache;
   }
 
   async rest<T>(path: string): Promise<T> {
-    const response = await this.send(`${this.apiUrl}${path}`, { method: "GET" });
-    if (response.status === 404) {
-      throw new NotFoundError(`GitHub returned 404 for ${path}`);
-    }
-    await this.assertOk(response);
-    return (await response.json()) as T;
+    const url = `${this.apiUrl}${path}`;
+    return this.cached(["GET", url], async () => {
+      const response = await this.send(url, { method: "GET" });
+      if (response.status === 404) {
+        throw new NotFoundError(`GitHub returned 404 for ${path}`);
+      }
+      await this.assertOk(response);
+      return (await response.json()) as T;
+    });
   }
 
   async graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
-    const response = await this.send(`${this.apiUrl}/graphql`, {
-      method: "POST",
-      body: JSON.stringify({ query, variables }),
+    const url = `${this.apiUrl}/graphql`;
+    const body = JSON.stringify({ query, variables });
+    return this.cached(["POST", url, body], async () => {
+      const response = await this.send(url, { method: "POST", body });
+      await this.assertOk(response);
+      const payload = (await response.json()) as GraphQLResponse<T>;
+      if (payload.errors && payload.errors.length > 0) {
+        throw graphqlError(payload.errors, response);
+      }
+      if (!payload.data) {
+        throw new GitHubError("GitHub GraphQL returned no data.");
+      }
+      return payload.data;
     });
-    await this.assertOk(response);
-    const payload = (await response.json()) as GraphQLResponse<T>;
-    if (payload.errors && payload.errors.length > 0) {
-      throw graphqlError(payload.errors, response);
-    }
-    if (!payload.data) {
-      throw new GitHubError("GitHub GraphQL returned no data.");
-    }
-    return payload.data;
+  }
+
+  /**
+   * Serve a request from the cache, or load it and store the result. Errors are never
+   * cached. The token is part of the key so data a token can see is never served to another.
+   */
+  private async cached<T>(request: string[], load: () => Promise<T>): Promise<T> {
+    if (!this.cache) return load();
+    const key = [this.token, ...request].join("\n");
+    const hit = await this.cache.get(key);
+    if (hit !== undefined) return hit as T;
+    const value = await load();
+    await this.cache.set(key, value);
+    return value;
   }
 
   private async send(url: string, init: RequestInit): Promise<Response> {
