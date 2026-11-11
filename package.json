@@ -1,6 +1,6 @@
 {
   "name": "contrib-scout",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Should I open a PR here? A scorecard for any GitHub repo: PR policy, AI-contribution policy, outsider merge rate and good-first-issue health.",
   "keywords": [
     "github",
