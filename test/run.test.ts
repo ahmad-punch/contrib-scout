@@ -1,16 +1,27 @@
-import { describe, expect, it } from "vitest";
-import { run } from "../src/run.ts";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { parseCacheTtl, run } from "../src/run.ts";
 import type { Report } from "../src/types.ts";
 import { fakeGitHub, NOW, pr, repoResponse } from "./helpers.ts";
 
-const env = { GITHUB_TOKEN: "test-token", NO_COLOR: "1" };
+let cacheDir: string;
+
+beforeEach(async () => {
+  cacheDir = await mkdtemp(join(tmpdir(), "contrib-scout-run-"));
+});
+
+afterEach(async () => {
+  await rm(cacheDir, { recursive: true, force: true });
+});
 
 async function cli(args: string[], fetch = fakeGitHub({})) {
   const out: string[] = [];
   const err: string[] = [];
   const code = await run(["node", "contrib-scout", ...args], {
     fetch,
-    env,
+    env: { GITHUB_TOKEN: "test-token", NO_COLOR: "1", CONTRIB_SCOUT_CACHE_DIR: cacheDir },
     readGhToken: () => null,
     stdout: (text) => out.push(text),
     stderr: (text) => err.push(text),
@@ -127,6 +138,36 @@ describe("contrib-scout CLI", () => {
   it("rejects bad input and conflicting flags with exit code 2", async () => {
     expect((await cli(["not-a-repo"])).code).toBe(2);
     expect((await cli(["a/b", "--json", "--markdown"])).err).toContain("Choose one output format");
+  });
+
+  it("answers a repeat run from the cache without calling GitHub", async () => {
+    const first = fakeGitHub(healthy);
+    const firstRun = await cli(["acme/widget", "--json"], first);
+    expect(first.calls.length).toBeGreaterThan(0);
+
+    const second = fakeGitHub(healthy);
+    const secondRun = await cli(["acme/widget", "--json"], second);
+    expect(second.calls).toEqual([]);
+    expect(secondRun.out).toBe(firstRun.out);
+  });
+
+  it("neither reads nor writes the cache with --no-cache", async () => {
+    await cli(["acme/widget"], fakeGitHub(healthy));
+    const fetch = fakeGitHub(healthy);
+    await cli(["acme/widget", "--no-cache"], fetch);
+    expect(fetch.calls).toContain("GET /repos/acme/widget");
+
+    await rm(cacheDir, { recursive: true, force: true });
+    await cli(["acme/widget", "--no-cache"], fakeGitHub(healthy));
+    await expect(readdir(cacheDir)).rejects.toThrow();
+  });
+
+  it("rejects a cache TTL that is not a positive number", async () => {
+    expect(parseCacheTtl(undefined)).toBe(6);
+    expect(parseCacheTtl("0.5")).toBe(0.5);
+    const { code, err } = await cli(["a/b", "--cache-ttl", "0"]);
+    expect(code).toBe(2);
+    expect(err).toContain("--cache-ttl takes a positive number of hours");
   });
 
   it("tells the user how to get a token", async () => {

@@ -1,5 +1,6 @@
 import { Command, CommanderError } from "commander";
 import { version } from "../package.json";
+import { DEFAULT_CACHE_TTL_HOURS, defaultCacheDir, FileCache } from "./cache.ts";
 import { AuthError, type FetchLike, GitHubClient, RateLimitError } from "./github.ts";
 import { renderCompareMarkdown, renderCompareText, sortByScore } from "./render/compare.ts";
 import { renderMarkdown } from "./render/markdown.ts";
@@ -29,9 +30,12 @@ interface CliOptions {
   markdown?: boolean;
   issues: boolean;
   token?: string;
+  cache: boolean;
+  cacheTtl?: string;
 }
 
 const CONCURRENCY = 3;
+const HOUR_MS = 3_600_000;
 
 function buildProgram(): Command {
   return new Command()
@@ -48,12 +52,24 @@ function buildProgram(): Command {
       "--token <token>",
       "GitHub token (default: GITHUB_TOKEN, GH_TOKEN, then `gh auth token`)",
     )
+    .option(
+      "--cache-ttl <hours>",
+      `reuse cached GitHub responses for this many hours (default: ${DEFAULT_CACHE_TTL_HOURS})`,
+    )
+    .option("--no-cache", "always call the GitHub API and leave the cache untouched")
     .option("--no-color", "disable coloured output")
     .showHelpAfterError("(run contrib-scout --help for usage)")
     .addHelpText(
       "after",
-      "\nExamples:\n  contrib-scout nestjs/nest\n  contrib-scout honojs/hono --markdown\n  contrib-scout vitejs/vite vuejs/core sveltejs/svelte --no-issues",
+      "\nExamples:\n  contrib-scout nestjs/nest\n  contrib-scout honojs/hono --markdown\n  contrib-scout vitejs/vite vuejs/core sveltejs/svelte --no-issues\n  contrib-scout nestjs/nest --no-cache",
     );
+}
+
+/** Hours from --cache-ttl, or null when the value is not a positive number. */
+export function parseCacheTtl(value: string | undefined): number | null {
+  if (value === undefined) return DEFAULT_CACHE_TTL_HOURS;
+  const hours = Number(value);
+  return Number.isFinite(hours) && hours > 0 ? hours : null;
 }
 
 async function mapLimit<T, R>(
@@ -117,6 +133,11 @@ export async function run(argv: string[], deps: RunDeps = {}): Promise<number> {
     stderr("Choose one output format: --json or --markdown, not both.");
     return 2;
   }
+  const cacheTtlHours = parseCacheTtl(options.cacheTtl);
+  if (cacheTtlHours === null) {
+    stderr("--cache-ttl takes a positive number of hours, for example 6 or 0.5.");
+    return 2;
+  }
 
   let repos: RepoRef[];
   try {
@@ -126,19 +147,20 @@ export async function run(argv: string[], deps: RunDeps = {}): Promise<number> {
     return 2;
   }
 
-  const resolved = resolveToken(
-    options.token,
-    deps.env ?? process.env,
-    deps.readGhToken ?? readGhCliToken,
-  );
+  const env = deps.env ?? process.env;
+  const resolved = resolveToken(options.token, env, deps.readGhToken ?? readGhCliToken);
   if (!resolved) {
     stderr(MISSING_TOKEN_MESSAGE);
     return 1;
   }
 
+  const cache = options.cache
+    ? new FileCache({ dir: defaultCacheDir(env), ttlMs: cacheTtlHours * HOUR_MS })
+    : null;
   const client = new GitHubClient({
     token: resolved.token,
     ...(deps.fetch ? { fetch: deps.fetch } : {}),
+    ...(cache ? { cache } : {}),
   });
   const showProgress = deps.showProgress ?? Boolean(process.stderr.isTTY);
   const scoutOptions = { includeIssues: options.issues, ...(deps.now ? { now: deps.now } : {}) };
